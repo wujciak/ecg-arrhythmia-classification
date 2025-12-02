@@ -16,9 +16,11 @@ def load_ecg_data(data_path):
 
 def prepare_sequences(X, y, sequence_length=100):
     X_seq, y_seq = [], []
+    
     for i in range(len(X) - sequence_length):
         X_seq.append(X[i:i + sequence_length])
         y_seq.append(y[i + sequence_length])
+    
     return np.array(X_seq), np.array(y_seq)
 
 
@@ -26,7 +28,7 @@ def build_model(input_shape, num_classes, neurons=64, dropout_rate=0.3):
     
     model = Sequential([
         LSTM(neurons, return_sequences=True, input_shape=input_shape, 
-             activation="tanh", kernel_regularizer=l2(0.01)),
+            activation="tanh", kernel_regularizer=l2(0.01)),
         Dropout(dropout_rate),
         LSTM(neurons * 2, return_sequences=True, activation="tanh", kernel_regularizer=l2(0.01)),
         Dropout(dropout_rate),
@@ -42,7 +44,7 @@ def build_model(input_shape, num_classes, neurons=64, dropout_rate=0.3):
 
 
 def main():
-    data_path = os.path.join('data', 'ecg-2', 'MIT-BIH Arrhythmia Database.csv')
+    data_path = os.path.join('datasets', 'do-ustalenia')
     df = load_ecg_data(data_path)
     
     print(f"Data shape: {df.shape}")
@@ -87,8 +89,8 @@ def main():
     print(f"Test Loss: {loss:.4f}")
     
     # Save model
-    model.save('ecg_lstm_model.h5')
-    print("Model saved!")
+    model.save('models\lstm\ecg_lstm_model.h5')
+    print("Model saved")
 
 
 if __name__ == "__main__":

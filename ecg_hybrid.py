@@ -7,7 +7,7 @@ from keras.layers import LSTM, Dense, Dropout, Conv1D, MaxPooling1D
 from keras.utils import to_categorical
 from keras.callbacks import EarlyStopping
 import os
-
+import matplotlib as plt
 
 def load_ecg_data(data_path):
     df = pd.read_csv(data_path)
@@ -16,9 +16,11 @@ def load_ecg_data(data_path):
 
 def prepare_sequences(X, y, sequence_length=100):
     X_seq, y_seq = [], []
+    
     for i in range(len(X) - sequence_length):
         X_seq.append(X[i:i + sequence_length])
         y_seq.append(y[i + sequence_length])
+    
     return np.array(X_seq), np.array(y_seq)
 
 
@@ -27,7 +29,7 @@ def build_model(input_shape, num_classes):
     model = Sequential()
     model.add(Conv1D(filters=64, kernel_size=3, activation="relu", input_shape=input_shape))
     model.add(MaxPooling1D(pool_size=2))
-    model.add(Conv1D(128, kernel_size=3, activation="relu"))
+    model.add(Conv1D(filters=128, kernel_size=3, activation="relu"))
     model.add(MaxPooling1D(pool_size=2))
     model.add(Dropout(0.4))
     model.add(LSTM(units=200, return_sequences=False))
@@ -40,7 +42,7 @@ def build_model(input_shape, num_classes):
 
 def main():
     # Load data
-    data_path = os.path.join("data", "ecg-2", "MIT-BIH Arrhythmia Database.csv")
+    data_path = os.path.join("datasets", "do-ustalenia")
     df = load_ecg_data(data_path)
     print(f"Data shape: {df.shape}")
     print(f"Columns: {df.columns.tolist()}")
@@ -81,7 +83,7 @@ def main():
     print(f"\nTest Accuracy: {accuracy:.4f}")
     print(f"Test Loss: {loss:.4f}")
     
-    model.save("ecg_hybrid_model.h5")
+    model.save("models\hybrid\ecg_hybrid_model.h5")
     print("Model saved!")
 
 if __name__ == "__main__":

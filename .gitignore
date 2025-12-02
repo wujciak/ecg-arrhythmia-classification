@@ -1,7 +1,10 @@
-data/
+datasets/ecg-kag/
+datasets/mit-bih/
+models/hybrid/
+models/lstm/
+.venv/
 .venv-ecg/
+.env
 __pycache__/
 *.pyc
 .DS_Store
-.env
-.venv/
