@@ -17,8 +17,17 @@ def plot_ecg_signal(df, num_samples=1000):
     plt.ylabel('Amplitude')
     plt.legend()
     plt.grid(True)
-    plt.savefig('ecg_signal.png', dpi=150)
+    plt.savefig('data_plots/ecg_signal.png', dpi=150)
     plt.show()
+
+
+def print_data_info(df):
+    print("Dataset Info:")
+    print(f"Shape: {df.shape}")
+    print(f"Columns: {df.columns.tolist()}")
+    print(f"\nFirst few rows:\n{df.head()}")
+    print(f"\nData types:\n{df.dtypes}")
+    print(f"\nClass distribution:\n{df.iloc[:, -1].value_counts()}")
 
 
 def plot_class_distribution(df):
@@ -30,7 +39,7 @@ def plot_class_distribution(df):
     plt.ylabel('Count')
     plt.xticks(rotation=45)
     plt.tight_layout()
-    plt.savefig('class_distribution.png', dpi=150)
+    plt.savefig('data_plots/class_distribution.png', dpi=150)
     plt.show()
 
 
@@ -56,23 +65,17 @@ def plot_training_history(history):
     axes[1].grid(True)
     
     plt.tight_layout()
-    plt.savefig('training_history.png', dpi=150)
+    plt.savefig('results/training_history.png', dpi=150)
     plt.show()
 
 
 def main():
-    data_path = os.path.join('data', 'ecg-2', 'MIT-BIH Arrhythmia Database.csv')
+    data_path = os.path.join('datasets', 'idk', 'idk')
     df = load_ecg_data(data_path)
-    
-    print("Dataset Info:")
-    print(f"Shape: {df.shape}")
-    print(f"Columns: {df.columns.tolist()}")
-    print(f"\nFirst few rows:\n{df.head()}")
-    print(f"\nData types:\n{df.dtypes}")
-    print(f"\nClass distribution:\n{df.iloc[:, -1].value_counts()}")
-    
+    print_data_info(df)
     plot_ecg_signal(df)
     plot_class_distribution(df)
+
 
 if __name__ == "__main__":
     main()

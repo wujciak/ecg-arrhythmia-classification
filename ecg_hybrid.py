@@ -9,6 +9,7 @@ from keras.callbacks import EarlyStopping
 import os
 import matplotlib as plt
 
+
 def load_ecg_data(data_path):
     df = pd.read_csv(data_path)
     return df
@@ -16,7 +17,6 @@ def load_ecg_data(data_path):
 
 def prepare_sequences(X, y, sequence_length=100):
     X_seq, y_seq = [], []
-    
     for i in range(len(X) - sequence_length):
         X_seq.append(X[i:i + sequence_length])
         y_seq.append(y[i + sequence_length])
@@ -25,7 +25,6 @@ def prepare_sequences(X, y, sequence_length=100):
 
 
 def build_model(input_shape, num_classes):
-    
     model = Sequential()
     model.add(Conv1D(filters=64, kernel_size=3, activation="relu", input_shape=input_shape))
     model.add(MaxPooling1D(pool_size=2))
@@ -44,12 +43,13 @@ def main():
     # Load data
     data_path = os.path.join("datasets", "do-ustalenia")
     df = load_ecg_data(data_path)
+    
     print(f"Data shape: {df.shape}")
     print(f"Columns: {df.columns.tolist()}")
     
     X, y = df.iloc[:, :-1].values, df.iloc[:, -1].values
     
-    # Encode labels
+    # Encode labels (normal=0, abnormal=1)
     le = LabelEncoder()
     y_encoded = le.fit_transform(y)
     num_classes = len(np.unique(y_encoded))

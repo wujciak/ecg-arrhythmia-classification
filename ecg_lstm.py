@@ -27,8 +27,7 @@ def prepare_sequences(X, y, sequence_length=100):
 def build_model(input_shape, num_classes, neurons=64, dropout_rate=0.3):
     
     model = Sequential([
-        LSTM(neurons, return_sequences=True, input_shape=input_shape, 
-            activation="tanh", kernel_regularizer=l2(0.01)),
+        LSTM(neurons, return_sequences=True, input_shape=input_shape, activation="tanh", kernel_regularizer=l2(0.01)),
         Dropout(dropout_rate),
         LSTM(neurons * 2, return_sequences=True, activation="tanh", kernel_regularizer=l2(0.01)),
         Dropout(dropout_rate),
@@ -44,6 +43,7 @@ def build_model(input_shape, num_classes, neurons=64, dropout_rate=0.3):
 
 
 def main():
+    # Load data
     data_path = os.path.join('datasets', 'do-ustalenia')
     df = load_ecg_data(data_path)
     
