@@ -1,5 +1,4 @@
-datasets/ecg-kag/
-datasets/mit-bih/
+datasets/
 models/hybrid/
 models/lstm/
 .venv/
