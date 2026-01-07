@@ -2,7 +2,6 @@ datasets/
 models/hybrid/
 models/lstm/
 .venv/
-.venv-ecg/
 .env
 __pycache__/
 *.pyc

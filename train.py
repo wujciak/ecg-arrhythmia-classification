@@ -1,94 +1,24 @@
 import pandas as pd
 import numpy as np
+
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.metrics import classification_report, confusion_matrix, balanced_accuracy_score
+from sklearn.utils.class_weight import compute_class_weight
+
 from keras.models import Sequential
 from keras.layers import LSTM, Dense, Dropout, Conv1D, MaxPooling1D
 from keras.utils import to_categorical
 from keras.callbacks import EarlyStopping
 from keras.regularizers import l2
+from keras.metrics import Precision, Recall
+
 import os
-from pathlib import Path
-from visualize import plot_training_history
-
-
-def load_patient_data(data_dir, patient_id):
-    data_dir = Path(data_dir)
-    ekg_file = data_dir / f"{patient_id}_ekg.csv"
-    ann_file = data_dir / f"{patient_id}_annotations_1.csv"
-    
-    ekg_df = pd.read_csv(ekg_file)
-    ann_df = pd.read_csv(ann_file)
-    
-    return ekg_df, ann_df
-
-
-def extract_heartbeats(ekg_df, ann_df, window_before=90, window_after=90):
-    segments = []
-    labels = []
-    
-    signal_channels = ["MLII", "V5"]
-    
-    for _, row in ann_df.iterrows():
-        idx = int(row["index"])
-        symbol = row["annotation_symbol"]
-        
-        start = idx - window_before
-        end = idx + window_after
-        
-        if start < 0 or end >= len(ekg_df):
-            continue
-        
-        segment = ekg_df.loc[start:end-1, signal_channels].values
-        segments.append(segment)
-        labels.append(symbol)
-    
-    return np.array(segments), np.array(labels)
-
-
-def load_multiple_patients(data_dir, patient_ids):
-    all_segments = []
-    all_labels = []
-    
-    for patient_id in patient_ids:
-        try:
-            ekg_df, ann_df = load_patient_data(data_dir, patient_id)
-            segments, labels = extract_heartbeats(ekg_df, ann_df)
-            all_segments.append(segments)
-            all_labels.append(labels)
-            print(f"Loaded patient {patient_id}: {len(segments)} heartbeats")
-        except Exception as e:
-            print(f"Error loading patient {patient_id}: {e}")
-    
-    return np.concatenate(all_segments), np.concatenate(all_labels)
-
-
-def group_to_binary(labels):
-    mapping = {
-        "N": "Normal", 
-        "L": "Normal", 
-        "R": "Normal", 
-        ".": "Normal",
-        
-        "A": "Abnormal", 
-        "a": "Abnormal", 
-        "J": "Abnormal", 
-        "S": "Abnormal",
-        "V": "Abnormal", 
-        "E": "Abnormal", 
-        "F": "Abnormal", 
-        "/": "Abnormal",
-        "f": "Abnormal", 
-        "Q": "Abnormal",
-        
-        "+": "Non-beat", 
-        "~": "Non-beat", 
-        "|": "Non-beat"
-    }
-    return np.array([mapping.get(label, "Abnormal") for label in labels])
+from utils import plot_training_history, load_multiple_patients, group_to_binary
 
 
 def build_lstm_model(input_shape, num_classes, neurons=64, dropout_rate=0.3):
+    """Build a multi-layer LSTM model for ECG arrhythmia classification."""
     model = Sequential([
         LSTM(neurons, return_sequences=True, input_shape=input_shape, activation="tanh", kernel_regularizer=l2(0.01)),
         Dropout(dropout_rate),
@@ -100,12 +30,22 @@ def build_lstm_model(input_shape, num_classes, neurons=64, dropout_rate=0.3):
         Dropout(dropout_rate),
         Dense(num_classes, activation="softmax")
     ])
-    model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
+    
+    model.compile(
+        optimizer="adam", 
+        loss="categorical_crossentropy", 
+        metrics=[
+            "accuracy",
+            Precision(class_id=0, name='abnormal_precision'),
+            Recall(class_id=0, name='abnormal_recall')
+        ]
+    )
     
     return model
 
 
 def build_hybrid_model(input_shape, num_classes):
+    """Build a hybrid CNN-LSTM model combining convolutional feature extraction with temporal modeling."""
     model = Sequential()
     model.add(Conv1D(filters=64, kernel_size=3, activation="relu", input_shape=input_shape))
     model.add(MaxPooling1D(pool_size=2))
@@ -115,17 +55,30 @@ def build_hybrid_model(input_shape, num_classes):
     model.add(LSTM(units=200, return_sequences=False))
     model.add(Dropout(0.3))
     model.add(Dense(num_classes, activation="softmax"))
-    model.compile(optimizer="adam", loss="categorical_crossentropy", metrics=["accuracy"])
+    
+    model.compile(
+        optimizer="adam", 
+        loss="categorical_crossentropy", 
+        metrics=[
+            "accuracy",
+            Precision(class_id=0, name='abnormal_precision'),
+            Recall(class_id=0, name='abnormal_recall')
+        ]
+    )
     
     return model
 
 
 def main():
-    model_type = "lstm"  # do wyboru
-    data_dir = "datasets/mit-bih-arrhythmia"
+    """Main training pipeline: load data, preprocess, train model, and evaluate results."""
+    model_type = "lstm"  # lstm or hybrid
+    data_dir = "datasets/mit-bih"    
     patient_ids = [
-        100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 111, 112, 113, 114, 115, 116, 117, 118, 119, 121
-        ]
+        100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 
+        111, 112, 113, 114, 115, 116, 117, 118, 119, 121, 122, 123, 124,
+        200, 201, 202, 203, 205, 207, 208, 209, 210, 212, 213, 214, 215, 
+        217, 219, 220, 221, 222, 223, 228, 230, 231, 232, 233, 234
+    ]
     
     print("\nLoading data")
     X, y = load_multiple_patients(data_dir, patient_ids)
@@ -160,6 +113,17 @@ def main():
     
     print(f"\nTrain: {X_train.shape[0]:,}, Test: {X_test.shape[0]:,}")
     
+    class_weights_array = compute_class_weight(
+        class_weight='balanced',
+        classes=np.unique(y_encoded),
+        y=y_encoded
+    )
+    class_weights = {i: weight for i, weight in enumerate(class_weights_array)}
+    
+    print(f"\nClass Weights:")
+    for i, weight in class_weights.items():
+        print(f"  {le.classes_[i]}: {weight:.2f}")
+    
     print(f"\n{'='*30}")
     print(f"Training {model_type.upper()} Model")
     print(f"{'='*30}")
@@ -182,6 +146,7 @@ def main():
         epochs=30,
         batch_size=64,
         validation_data=(X_test, y_test),
+        class_weight=class_weights,
         callbacks=[early_stopping],
         verbose=1
     )
@@ -189,20 +154,54 @@ def main():
     print("\n" + "="*30)
     print("RESULTS")
     print("="*30)
-    loss, accuracy = model.evaluate(X_test, y_test, verbose=0)
-    print(f"Test Accuracy: {accuracy*100:.2f}%")
-    print(f"Test Loss: {loss:.4f}")
-    print(f"Classes: {le.classes_}")
+    
+    results = model.evaluate(X_test, y_test, verbose=0)
+    print(f"Test Accuracy: {results[1]*100:.2f}%")
+    print(f"Test Loss: {results[0]:.4f}")
+    print(f"Test Abnormal Precision: {results[2]*100:.2f}%")
+    print(f"Test Abnormal Recall (Sensitivity): {results[3]*100:.2f}%")
+    
+    y_pred = model.predict(X_test, verbose=0)
+    y_pred_classes = np.argmax(y_pred, axis=1)
+    y_test_classes = np.argmax(y_test, axis=1)
+    
+    bal_acc = balanced_accuracy_score(y_test_classes, y_pred_classes)
+    print(f"\nTest Balanced Accuracy: {bal_acc*100:.2f}%")
+    
+    print("\nConfusion Matrix:")
+    cm = confusion_matrix(y_test_classes, y_pred_classes)
+    print(f"{'':>15} {'Pred Abnormal':>15} {'Pred Normal':>15}")
+    for i, label in enumerate(le.classes_):
+        print(f"{f'True {label}':>15} {cm[i][0]:>15} {cm[i][1]:>15}")
+    
+    print("\nPer-Class Metrics:")
+    print(classification_report(y_test_classes, y_pred_classes, target_names=le.classes_, digits=4))
+    
+    if len(le.classes_) == 2:
+        abnormal_idx = np.where(le.classes_ == 'Abnormal')[0][0]
+        normal_idx = np.where(le.classes_ == 'Normal')[0][0]
+        
+        tn = cm[normal_idx][normal_idx]
+        fp = cm[normal_idx][abnormal_idx]
+        fn = cm[abnormal_idx][normal_idx]
+        tp = cm[abnormal_idx][abnormal_idx]
+        
+        sensitivity = tp / (tp + fn) if (tp + fn) > 0 else 0
+        specificity = tn / (tn + fp) if (tn + fp) > 0 else 0
+        
+        print(f"\nMedical Metrics:")
+        print(f"  Sensitivity (Abnormal Detection): {sensitivity*100:.2f}%")
+        print(f"  Specificity (Normal Detection): {specificity*100:.2f}%")
+    
+    print(f"\nClasses: {le.classes_}")
     
     model_dir = f"models/{model_type}"
     os.makedirs(model_dir, exist_ok=True)
-    model_path = f"{model_dir}/ecg_{model_type}_model.h5"
+    model_path = f"{model_dir}/ecg_{model_type}_model.keras"
     model.save(model_path)
     print(f"\nModel saved to {model_path}")
     
-    print("\nGenerating training plots...")
     plot_training_history(history, model_type)
-    print(f"Training plots saved to plots/training/{model_type}_history.png")
 
 
 if __name__ == "__main__":

@@ -5,7 +5,15 @@ import os
 from pathlib import Path
 
 
+def get_signal_channels(ekg_df):
+    """Extract ECG signal channel names, excluding metadata columns."""
+    exclude_cols = ['Unnamed: 0', 'symbol', 'index', 'time']
+    channels = [col for col in ekg_df.columns if col not in exclude_cols]
+    return channels
+
+
 def load_patient_data(data_dir, patient_id):
+    """Load ECG and annotation data for a specific patient."""
     data_dir = Path(data_dir)
     ekg_file = data_dir / f"{patient_id}_ekg.csv"
     ann_file = data_dir / f"{patient_id}_annotations_1.csv"
@@ -17,10 +25,14 @@ def load_patient_data(data_dir, patient_id):
 
 
 def plot_ecg_signal(ekg_df, patient_id, num_samples=3600):
+    """Plot and save raw ECG signal for the first 10 seconds."""
+    signal_channels = get_signal_channels(ekg_df)
+    
     plt.figure(figsize=(16, 6))
-    time = np.arange(num_samples) / 360  # Convert to seconds
-    plt.plot(time, ekg_df["MLII"].values[:num_samples], label="MLII", alpha=0.8, linewidth=1)
-    plt.plot(time, ekg_df["V5"].values[:num_samples], label="V5", alpha=0.8, linewidth=1)
+    time = np.arange(num_samples) / 360  # convert to seconds
+    
+    for channel in signal_channels[:2]:
+        plt.plot(time, ekg_df[channel].values[:num_samples], label=channel, alpha=0.8, linewidth=1)
     
     plt.title(f"ECG Signal - Patient {patient_id} (First 10 seconds)", fontsize=14, fontweight="bold")
     plt.xlabel("Time (seconds)")
@@ -36,14 +48,18 @@ def plot_ecg_signal(ekg_df, patient_id, num_samples=3600):
 
 
 def plot_annotated_signal(ekg_df, ann_df, patient_id, start_sample=0, duration_sec=10):
+    """Plot ECG signal with annotation markers colored by beat type."""
+    signal_channels = get_signal_channels(ekg_df)
+    primary_channel = signal_channels[0]
+    
     num_samples = int(duration_sec * 360)  # 360 Hz sampling rate
     end_sample = start_sample + num_samples
     
     plt.figure(figsize=(16, 6))
     
     time = np.arange(start_sample, end_sample) / 360
-    signal = ekg_df["MLII"].values[start_sample:end_sample]
-    plt.plot(time, signal, "b-", alpha=0.7, linewidth=1.5, label="MLII")
+    signal = ekg_df[primary_channel].values[start_sample:end_sample]
+    plt.plot(time, signal, "b-", alpha=0.7, linewidth=1.5, label=primary_channel)
     
     ann_in_range = ann_df[(ann_df["index"] >= start_sample) & (ann_df["index"] < end_sample)]
     
@@ -51,9 +67,15 @@ def plot_annotated_signal(ekg_df, ann_df, patient_id, start_sample=0, duration_s
         idx = row["index"]
         symbol = row["annotation_symbol"]
         time_point = idx / 360
-        signal_value = ekg_df.loc[idx, "MLII"]
+        signal_value = ekg_df.loc[idx, primary_channel]
         
-        color = "green" if symbol == 'N' else "red"
+        if symbol in ['N', 'L', 'R', '.']:
+            color = "green"
+        elif symbol in ['+', '~', '|']:
+            color = "grey"
+        else:
+            color = "red"
+        
         plt.plot(time_point, signal_value, 'o', color=color, markersize=8, alpha=0.7)
         plt.text(time_point, signal_value + 0.1, symbol, fontsize=10, ha="center", fontweight="bold")
     
@@ -71,13 +93,16 @@ def plot_annotated_signal(ekg_df, ann_df, patient_id, start_sample=0, duration_s
 
 
 def print_data_info(ekg_df, ann_df, patient_id):
+    """Print summary statistics about ECG recording and annotations."""
+    signal_channels = get_signal_channels(ekg_df)
+    
     print("="*30)
     print(f"Patient {patient_id} - Data Info")
     print("="*30)
     
     print(f"\nEKG Signal:")
     print(f"  Shape: {ekg_df.shape}")
-    print(f"  Channels: {["MLII:", "V5"]}")
+    print(f"  Channels: {signal_channels}")
     print(f"  Duration: {len(ekg_df) / 360 / 60:.1f} minutes")
     print(f"  Sampling rate: 360 Hz")
     
@@ -91,10 +116,11 @@ def print_data_info(ekg_df, ann_df, patient_id):
 
 
 def plot_class_distribution(ann_df, patient_id=None):
+    """Plot bar chart showing distribution of heartbeat annotation types."""
     plt.figure(figsize=(10, 6))
     
     counts = ann_df["annotation_symbol"].value_counts()
-    colors = ["green" if symbol == 'N' else "red" for symbol in counts.index]
+    colors = ["green" if symbol in ['N', 'L', 'R', '.'] else "grey" if symbol in ['+', '~', '|'] else "red" for symbol in counts.index]
     
     counts.plot(kind="bar", color=colors, alpha=0.7, edgecolor="black")
     
@@ -102,10 +128,10 @@ def plot_class_distribution(ann_df, patient_id=None):
     if patient_id:
         title += f" - Patient {patient_id}"
     
-    plt.title(title, fontsize=14, fontweight="bold:")
+    plt.title(title, fontsize=14, fontweight="bold")
     plt.xlabel("Annotation Symbol")
     plt.ylabel("Count")
-    plt.xticks(rotation=45)
+    plt.xticks(rotation=90)
     plt.grid(True, axis='y', alpha=0.3)
     plt.tight_layout()
     
@@ -116,35 +142,11 @@ def plot_class_distribution(ann_df, patient_id=None):
     print(f"Distribution plot saved to {filename}")
 
 
-def plot_training_history(history, model_name='model'):
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-    
-    # Accuracy
-    axes[0].plot(history.history['accuracy'], label='Train', linewidth=2, marker='o', markersize=4)
-    axes[0].plot(history.history['val_accuracy'], label='Validation', linewidth=2, marker='s', markersize=4)
-    axes[0].set_title(f'{model_name} - Accuracy', fontsize=14, fontweight='bold')
-    axes[0].set_xlabel('Epoch')
-    axes[0].set_ylabel('Accuracy')
-    axes[0].legend()
-    axes[0].grid(True, alpha=0.3)
-    
-    # Loss
-    axes[1].plot(history.history['loss'], label='Train', linewidth=2, marker='o', markersize=4)
-    axes[1].plot(history.history['val_loss'], label='Validation', linewidth=2, marker='s', markersize=4)
-    axes[1].set_title(f'{model_name} - Loss', fontsize=14, fontweight='bold')
-    axes[1].set_xlabel('Epoch')
-    axes[1].set_ylabel('Loss')
-    axes[1].legend()
-    axes[1].grid(True, alpha=0.3)
-    
-    plt.tight_layout()
-    os.makedirs('plots/training', exist_ok=True)
-    plt.savefig(f'plots/training/{model_name}_history.png', dpi=150)
-    plt.show()
-    print(f"Training history saved to plots/training/{model_name}_history.png")
-
-
 def plot_heartbeat_samples(ekg_df, ann_df, num_samples=5, window=90):
+    """Plot sample heartbeat waveforms for each annotation type."""
+    signal_channels = get_signal_channels(ekg_df)
+    primary_channel = signal_channels[0]
+    
     symbols = ann_df['annotation_symbol'].value_counts().head(5).index
     
     fig, axes = plt.subplots(len(symbols), num_samples, figsize=(15, 3*len(symbols)))
@@ -158,7 +160,7 @@ def plot_heartbeat_samples(ekg_df, ann_df, num_samples=5, window=90):
             start = max(0, idx - window)
             end = min(len(ekg_df), idx + window)
             
-            segment = ekg_df['MLII'].values[start:end]
+            segment = ekg_df[primary_channel].values[start:end]
             
             ax = axes[i, j] if len(symbols) > 1 else axes[j]
             ax.plot(segment, linewidth=1.5)
@@ -180,8 +182,9 @@ def plot_heartbeat_samples(ekg_df, ann_df, num_samples=5, window=90):
 
 
 def main():
-    data_dir = 'datasets/mit-bih-arrhythmia'
-    patient_id = 100  # do zmiany w zależności od pacjenta
+    """Generate all visualizations for a single patient's ECG data."""
+    data_dir = 'datasets/mit-bih'
+    patient_id = 200  # do zmiany w zależności od pacjenta
     
     print(f"Loading data for patient {patient_id}\n")
     ekg_df, ann_df = load_patient_data(data_dir, patient_id)
