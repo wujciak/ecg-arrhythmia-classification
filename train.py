@@ -143,7 +143,7 @@ def main():
     print("\nTraining start")
     history = model.fit(
         X_train, y_train,
-        epochs=30,
+        epochs=20,
         batch_size=64,
         validation_data=(X_test, y_test),
         class_weight=class_weights,
