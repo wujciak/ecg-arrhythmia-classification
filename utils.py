@@ -87,30 +87,41 @@ def group_to_binary(labels):
         "~": "Non-beat", 
         "|": "Non-beat"
     }
-    return np.array([mapping.get(label, "Abnormal") for label in labels])
+    return np.array([mapping.get(label, "Non-beat") for label in labels])
 
 
 def plot_training_history(history, model_name='model'):
-    """Plot and save training history (accuracy and loss)."""
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+    """Plot and save training history (accuracy, loss and auc)."""
+    auc_metric = next((k for k in history.history.keys() if 'auc' in k and not k.startswith('val_')), None)
     
-    # accuracy plot
-    axes[0].plot(history.history['accuracy'], label='Train', linewidth=2, marker='o', markersize=4)
-    axes[0].plot(history.history['val_accuracy'], label='Validation', linewidth=2, marker='s', markersize=4)
-    axes[0].set_title(f'{model_name} - Accuracy', fontsize=14, fontweight='bold')
+    cols = 3 if auc_metric else 2
+    fig, axes = plt.subplots(1, cols, figsize=(7 * cols, 5))
+    
+    axes[0].plot(history.history['loss'], label='Train', linewidth=2, marker='o', markersize=4)
+    axes[0].plot(history.history['val_loss'], label='Validation', linewidth=2, marker='s', markersize=4)
+    axes[0].set_title(f'{model_name} - Loss', fontsize=14, fontweight='bold')
     axes[0].set_xlabel('Epoch')
-    axes[0].set_ylabel('Accuracy')
+    axes[0].set_ylabel('Loss')
     axes[0].legend()
     axes[0].grid(True, alpha=0.3)
     
-    # loss plot
-    axes[1].plot(history.history['loss'], label='Train', linewidth=2, marker='o', markersize=4)
-    axes[1].plot(history.history['val_loss'], label='Validation', linewidth=2, marker='s', markersize=4)
-    axes[1].set_title(f'{model_name} - Loss', fontsize=14, fontweight='bold')
+    axes[1].plot(history.history['accuracy'], label='Train', linewidth=2, marker='o', markersize=4)
+    axes[1].plot(history.history['val_accuracy'], label='Validation', linewidth=2, marker='s', markersize=4)
+    axes[1].set_title(f'{model_name} - Accuracy', fontsize=14, fontweight='bold')
     axes[1].set_xlabel('Epoch')
-    axes[1].set_ylabel('Loss')
+    axes[1].set_ylabel('Accuracy')
     axes[1].legend()
     axes[1].grid(True, alpha=0.3)
+
+    if auc_metric:
+        val_auc_metric = f"val_{auc_metric}"
+        axes[2].plot(history.history[auc_metric], label='Train', linewidth=2, marker='o', markersize=4)
+        axes[2].plot(history.history[val_auc_metric], label='Validation', linewidth=2, marker='s', markersize=4)
+        axes[2].set_title(f'{model_name} - AUC (ROC)', fontsize=14, fontweight='bold')
+        axes[2].set_xlabel('Epoch')
+        axes[2].set_ylabel('AUC')
+        axes[2].legend()
+        axes[2].grid(True, alpha=0.3)
     
     plt.tight_layout()
     os.makedirs('plots/training', exist_ok=True)

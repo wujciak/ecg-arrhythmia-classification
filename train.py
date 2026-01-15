@@ -1,4 +1,3 @@
-import pandas as pd
 import numpy as np
 
 from sklearn.model_selection import train_test_split
@@ -11,7 +10,7 @@ from keras.layers import LSTM, Dense, Dropout, Conv1D, MaxPooling1D
 from keras.utils import to_categorical
 from keras.callbacks import EarlyStopping
 from keras.regularizers import l2
-from keras.metrics import Precision, Recall
+from keras.metrics import Precision, Recall, AUC
 
 import os
 from utils import plot_training_history, load_multiple_patients, group_to_binary
@@ -36,6 +35,7 @@ def build_lstm_model(input_shape, num_classes, neurons=64, dropout_rate=0.3):
         loss="categorical_crossentropy", 
         metrics=[
             "accuracy",
+            AUC(name="auc"),
             Precision(class_id=0, name='abnormal_precision'),
             Recall(class_id=0, name='abnormal_recall')
         ]
@@ -61,6 +61,7 @@ def build_hybrid_model(input_shape, num_classes):
         loss="categorical_crossentropy", 
         metrics=[
             "accuracy",
+            AUC(name="auc"),
             Precision(class_id=0, name='abnormal_precision'),
             Recall(class_id=0, name='abnormal_recall')
         ]
@@ -138,7 +139,12 @@ def main():
     print("\nModel Architecture:")
     model.summary()
     
-    early_stopping = EarlyStopping(monitor="val_loss", patience=10, restore_best_weights=True)
+    early_stopping = EarlyStopping(
+        monitor="val_auc",
+        mode="max",
+        patience=10,
+        restore_best_weights=True
+        )
     
     print("\nTraining start")
     history = model.fit(
@@ -158,8 +164,9 @@ def main():
     results = model.evaluate(X_test, y_test, verbose=0)
     print(f"Test Accuracy: {results[1]*100:.2f}%")
     print(f"Test Loss: {results[0]:.4f}")
-    print(f"Test Abnormal Precision: {results[2]*100:.2f}%")
-    print(f"Test Abnormal Recall (Sensitivity): {results[3]*100:.2f}%")
+    print(f"Test AUC: {results[2]:.4f}")
+    print(f"Test Abnormal Precision: {results[3]*100:.2f}%")
+    print(f"Test Abnormal Recall: {results[4]*100:.2f}%")
     
     y_pred = model.predict(X_test, verbose=0)
     y_pred_classes = np.argmax(y_pred, axis=1)
