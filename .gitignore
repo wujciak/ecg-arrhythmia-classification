@@ -1,8 +1,11 @@
-datasets/
-models/hybrid/
-models/lstm/
+# Data and training artefacts (data is downloaded by scripts/download_data.sh)
+/data/
+/models/
+
+# Python
+__pycache__/
+*.py[cod]
 .venv/
 .env
-__pycache__/
-*.pyc
+.ipynb_checkpoints/
 .DS_Store
